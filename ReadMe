@@ -1,0 +1,62 @@
+MVP OF AI-TO-AI MARKETPLACE
+
+1.  MVP Goal
+    A minimal prototype that only proves one thing:
+    [An agent can discover another agent, request a task, recieve the result, and trigger payment automatically]
+
+2.  Components
+    ~ Component 1-Agent Registry
+    This is the directory of all agents, and each agent publishes its capabilities. Database options(PostgreSQL, MongoDB). Functions needed: register_agent(), update_agent(), search_agent().
+    {
+    "agent_id": "data-summarizer-01",
+    "endpoint": "https://agent-url/api/run",
+    "capabilities": ["summarize_text", "extract_keywords"],
+    "price_per_task": 0.01,
+    "avg_latency": 3,
+    "reputation_score": 4.7
+    }
+
+    ~ Component 2-Task Broker
+    This service matches tasks with agents. The broker searches registry, ranks agents by reputaion score + price, sends request to the best agent.
+    {
+    "task": "summarize_text",
+    "input": "large research article",
+    "budget": 0.02
+    }
+
+    ~ Component 3- Agent Communication protocol
+    All agents must use the same request format
+    {
+    "task_id": "9834",
+    "task_type": "summarize_text",
+    "input_data": "...",
+    "callback_url": "https://broker/api/result"
+    }
+
+    ~ Component 4-Verification Layer
+    Before payment is released, another system verifies the output. For simple tasks, verification might be automated.
+    Verification methods:
+    rule-based validation
+    secondary AI check
+    checksum validation for deterministic tasks
+
+    ~ Component 5-Payment Layer
+    After verification, escrow-execute-verify-pay. This layer records the transaction.
+    task_id: 9834
+    payer_agent: research-agent-01
+    worker_agent: summarizer-agent-01
+    amount: $0.01
+    status: paid
+
+3.  Basic System Architecture
+
+         Agent Registry
+               |
+         Task Broker
+               |
+         ______|_________
+        |                |
+        Worker Agent    Verifier Agent
+        |_________________|
+               |
+            Payement Layer

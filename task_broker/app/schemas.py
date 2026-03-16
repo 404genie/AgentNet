@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 
-# ── Enums (as Literal types — avoids Python Enum serialization quirks) ─────────
+# ── Enums ──────────────────────────────────────────────────────────────────────
 
 TaskStatus = Literal["pending", "assigned", "completed", "failed", "cancelled"]
 AttemptStatus = Literal["dispatched", "succeeded", "failed", "timed_out"]
@@ -30,8 +30,12 @@ class SubmitTaskRequest(BaseModel):
         ...,
         min_length=1,
         max_length=100,
-        description="Name or ID of the agent submitting this task",
+        description="Human-readable name of the agent submitting this task",
         examples=["orchestrator-agent-v1"],
+    )
+    submitted_by_agent_id: uuid.UUID = Field(
+        ...,
+        description="UUID of the submitting agent (must match their registry ID and have a wallet)",
     )
     max_attempts: int = Field(
         default=3,
@@ -85,6 +89,7 @@ class TaskResponse(BaseModel):
     result_payload: dict[str, Any] | None
     error_message: str | None
     submitted_by: str
+    submitted_by_agent_id: uuid.UUID
     max_attempts: int
     timeout_seconds: int
     attempts: list[TaskAttemptResponse]
@@ -111,8 +116,7 @@ class ListTasksParams(BaseModel):
     offset: int = Field(default=0, ge=0)
 
 
-# ── Internal: agent record returned by the registry ───────────────────────────
-# Used by broker.py to deserialize registry search results.
+# ── Internal: agent record from registry ──────────────────────────────────────
 
 class RegistryAgent(BaseModel):
     id: uuid.UUID

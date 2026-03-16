@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     status              task_status NOT NULL DEFAULT 'pending',
     result_payload      JSONB,                  -- NULL until completed
     error_message       TEXT,                   -- populated on failure
-    submitted_by        VARCHAR(100) NOT NULL,  -- name/id of Agent A
+    submitted_by        VARCHAR(100) NOT NULL,  -- human-readable name of Agent A
+    submitted_by_agent_id UUID,                   -- registry UUID of Agent A (for payment)
     max_attempts        SMALLINT NOT NULL DEFAULT 3
                             CHECK (max_attempts BETWEEN 1 AND 10),
     timeout_seconds     SMALLINT NOT NULL DEFAULT 30

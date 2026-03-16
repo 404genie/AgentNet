@@ -16,6 +16,7 @@ async def create_task(db: AsyncSession, data: SubmitTaskRequest) -> Task:
         capability_required=data.capability_required,
         input_payload=data.input_payload,
         submitted_by=data.submitted_by,
+        submitted_by_agent_id=data.submitted_by_agent_id,
         max_attempts=data.max_attempts,
         timeout_seconds=data.timeout_seconds,
         status="pending",

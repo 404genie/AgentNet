@@ -26,6 +26,9 @@ class Task(Base):
     result_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     submitted_by: Mapped[str] = mapped_column(String(100), nullable=False)
+    submitted_by_agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
     max_attempts: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=3)
     timeout_seconds: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=30)
     created_at: Mapped[datetime] = mapped_column(

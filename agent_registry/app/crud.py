@@ -82,3 +82,25 @@ async def get_agent_by_id(db: AsyncSession, agent_id: uuid.UUID) -> Agent | None
     """Fetch a single agent by its UUID. Returns None if not found."""
     result = await db.execute(select(Agent).where(Agent.id == agent_id))
     return result.scalar_one_or_none()
+
+
+# ── Update reputation ──────────────────────────────────────────────────────────
+
+async def update_agent_reputation(
+    db: AsyncSession,
+    agent_id: uuid.UUID,
+    reputation: Decimal,
+) -> Agent | None:
+    """
+    Update the reputation score for an agent.
+    Called by the reputation protocol after each task outcome.
+    Returns the updated agent, or None if not found.
+    """
+    result = await db.execute(select(Agent).where(Agent.id == agent_id))
+    agent = result.scalar_one_or_none()
+    if agent is None:
+        return None
+    agent.reputation = reputation
+    await db.flush()
+    await db.refresh(agent)
+    return agent

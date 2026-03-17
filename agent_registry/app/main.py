@@ -12,6 +12,7 @@ from app.schemas import (
     AgentResponse,
     AgentListResponse,
     SearchAgentsParams,
+    UpdateReputationRequest,
 )
 from app import crud
 
@@ -64,7 +65,7 @@ async def register_agent(
     - **capabilities**: List of capability tags (e.g. `["summarization", "translation"]`)
     - **price**: Cost per task in credits
 
-    Reputation starts at `0.00` and is updated by the reputation protocol (future).
+    Reputation starts at `0.00` and is updated by the reputation protocol.
     """
     try:
         agent = await crud.create_agent(db, body)
@@ -130,6 +131,33 @@ async def get_agent(
     agent = await crud.get_agent_by_id(db, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found.")
+    return agent
+
+
+# ── PATCH /agents/{agent_id}/reputation ───────────────────────────────────────
+
+@app.patch(
+    "/agents/{agent_id}/reputation",
+    response_model=AgentResponse,
+    summary="Update agent reputation score",
+    tags=["Registry"],
+)
+async def update_reputation(
+    agent_id: uuid.UUID,
+    body: UpdateReputationRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Called by the reputation protocol after every task outcome.
+    Updates the agent's reputation score (0.00–5.00) in the registry
+    so that search results always reflect current reputation.
+    """
+    agent = await crud.update_agent_reputation(db, agent_id, body.reputation)
+    if not agent:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Agent '{agent_id}' not found."
+        )
     return agent
 
 

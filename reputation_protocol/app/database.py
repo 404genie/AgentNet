@@ -6,12 +6,10 @@ from sqlalchemy.orm import DeclarativeBase
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://postgres:password@localhost:5432/task_broker"
+    database_url: str = "postgresql+asyncpg://postgres:password@localhost:5432/reputation_protocol"
     registry_url: str = "http://localhost:8000"
-    payment_url: str = "http://localhost:8002"
-    reputation_url: str = "http://localhost:8003"
-    agent_timeout_seconds: int = 30
-    max_attempts: int = 3
+    # Response time ceiling — anything at or above this scores 0 on time_score
+    max_acceptable_response_ms: int = 30000
 
     model_config = SettingsConfigDict(env_file=".env")
 
@@ -37,7 +35,6 @@ class Base(DeclarativeBase):
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency — yields a DB session per request."""
     async with AsyncSessionLocal() as session:
         try:
             yield session

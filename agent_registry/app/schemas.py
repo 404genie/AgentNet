@@ -181,3 +181,15 @@ class SearchAgentsParams(BaseModel):
     )
     limit: int = Field(default=20, ge=1, le=100)
     offset: int = Field(default=0, ge=0)
+
+
+# ── Reputation update (called by reputation protocol) ─────────────────────────
+
+class UpdateReputationRequest(BaseModel):
+    reputation: Decimal = Field(
+        ...,
+        ge=0,
+        le=5,
+        decimal_places=2,
+        description="New registry score from the reputation protocol (0.00–5.00)",
+    )

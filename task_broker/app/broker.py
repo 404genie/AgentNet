@@ -18,6 +18,7 @@ The broker never assumes any agent is reliable:
 """
 
 import logging
+import time
 import uuid
 from decimal import Decimal
 
@@ -167,6 +168,42 @@ async def _release_hold(task_id: uuid.UUID) -> None:
         logger.error("Task %s: hold release failed: %s.", task_id, exc)
 
 
+# ── Reputation update ─────────────────────────────────────────────────────────
+
+async def _update_reputation(
+    agent_id: uuid.UUID,
+    agent_name: str,
+    task_id: uuid.UUID,
+    outcome: str,
+    response_ms: int | None,
+    payment_successful: bool,
+) -> None:
+    """
+    POST /reputation/update — fire-and-forget after each attempt outcome.
+    Failure is logged but never affects task status.
+    """
+    payload = {
+        "agent_id": str(agent_id),
+        "agent_name": agent_name,
+        "task_id": str(task_id),
+        "outcome": outcome,
+        "response_ms": response_ms,
+        "payment_successful": payment_successful,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{settings.reputation_url}/reputation/update",
+                json=payload,
+            )
+            resp.raise_for_status()
+    except Exception as exc:
+        logger.error(
+            "Task %s: reputation update failed for agent '%s': %s",
+            task_id, agent_name, exc,
+        )
+
+
 # ── Response validation ────────────────────────────────────────────────────────
 
 def _validate_agent_response(
@@ -212,10 +249,10 @@ async def _dispatch_to_agent(
     task: Task,
     agent: RegistryAgent,
     attempt_number: int,
-) -> dict | None:
+) -> tuple[dict, int] | None:
     """
     Dispatch the task to a single agent and record the attempt.
-    Returns the result payload dict on success, None on any failure.
+    Returns (result_payload, response_ms) on success, None on any failure.
     """
     attempt = await crud.create_attempt(
         db=db,
@@ -232,11 +269,13 @@ async def _dispatch_to_agent(
         "input": task.input_payload,
     }
 
+    started_at = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=task.timeout_seconds) as client:
             resp = await client.post(agent.endpoint, json=payload)
             resp.raise_for_status()
             response_data = resp.json()
+        response_ms = int((time.monotonic() - started_at) * 1000)
 
     except httpx.TimeoutException:
         logger.warning(
@@ -244,6 +283,7 @@ async def _dispatch_to_agent(
             task.id, agent.name, task.timeout_seconds, attempt_number,
         )
         await crud.resolve_attempt(db, attempt, "timed_out", "Agent timed out.")
+        await _update_reputation(agent.id, agent.name, task.id, "timed_out", None, False)
         return None
 
     except httpx.HTTPStatusError as exc:
@@ -253,12 +293,14 @@ async def _dispatch_to_agent(
             task.id, agent.name, exc.response.status_code, attempt_number,
         )
         await crud.resolve_attempt(db, attempt, "failed", error)
+        await _update_reputation(agent.id, agent.name, task.id, "failed", None, False)
         return None
 
     except Exception as exc:
         error = f"Unexpected error calling agent: {exc}"
         logger.error("Task %s: agent '%s' error: %s", task.id, agent.name, exc)
         await crud.resolve_attempt(db, attempt, "failed", error)
+        await _update_reputation(agent.id, agent.name, task.id, "failed", None, False)
         return None
 
     validation_error = _validate_agent_response(
@@ -270,6 +312,7 @@ async def _dispatch_to_agent(
             task.id, agent.name, validation_error, attempt_number,
         )
         await crud.resolve_attempt(db, attempt, "failed", validation_error)
+        await _update_reputation(agent.id, agent.name, task.id, "failed", None, False)
         return None
 
     await crud.resolve_attempt(db, attempt, "succeeded")
@@ -277,7 +320,7 @@ async def _dispatch_to_agent(
         "Task %s: agent '%s' succeeded (attempt %d)",
         task.id, agent.name, attempt_number,
     )
-    return response_data
+    return response_data, response_ms
 
 
 # ── Main dispatch entry point ──────────────────────────────────────────────────
@@ -342,11 +385,18 @@ async def dispatch_task(db: AsyncSession, task: Task) -> None:
     errors: list[str] = []
 
     for attempt_number, agent in enumerate(candidates, start=1):
-        result = await _dispatch_to_agent(db, task, agent, attempt_number)
+        dispatch_result = await _dispatch_to_agent(db, task, agent, attempt_number)
 
-        if result is not None:
-            # Settle first — result is real regardless of payment outcome
-            await _settle_payment(task.id)
+        if dispatch_result is not None:
+            result, response_ms = dispatch_result
+            # Settle payment first — result is real regardless of payment outcome
+            payment_ok = await _settle_payment(task.id)
+            await _update_reputation(
+                agent.id, agent.name, task.id,
+                outcome="completed",
+                response_ms=response_ms,
+                payment_successful=payment_ok,
+            )
             await crud.update_task_status(
                 db, task, "completed", result_payload=result
             )

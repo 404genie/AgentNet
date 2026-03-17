@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Integer, Numeric, String, text
+from sqlalchemy import BigInteger, Boolean, DateTime, Enum, Integer, Numeric, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -85,7 +85,11 @@ class ReputationEvent(Base):
         UUID(as_uuid=True), nullable=False, unique=True,
     )
     # completed | failed | timed_out
-    outcome: Mapped[str] = mapped_column(String(20), nullable=False)
+    outcome: Mapped[str] = mapped_column(
+        Enum("completed", "failed", "timed_out",
+             name="task_outcome", create_type=False),
+        nullable=False,
+    )
     # NULL for failed/timed_out — agent never responded
     response_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     payment_successful: Mapped[bool] = mapped_column(

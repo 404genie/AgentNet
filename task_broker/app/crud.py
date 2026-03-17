@@ -23,8 +23,11 @@ async def create_task(db: AsyncSession, data: SubmitTaskRequest) -> Task:
     )
     db.add(task)
     await db.flush()
-    await db.refresh(task)
-    return task
+    # Re-fetch with selectinload so attempts relationship is eagerly loaded
+    result = await db.execute(
+        select(Task).options(selectinload(Task.attempts)).where(Task.id == task.id)
+    )
+    return result.scalar_one()
 
 
 # ── Get task by ID (with attempts eagerly loaded) ─────────────────────────────

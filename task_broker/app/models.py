@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    DateTime, ForeignKey,
+    DateTime, Enum, ForeignKey,
     SmallInteger, String, Text, text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -22,7 +22,11 @@ class Task(Base):
     )
     capability_required: Mapped[str] = mapped_column(String(100), nullable=False)
     input_payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    status: Mapped[str] = mapped_column(
+        Enum("pending", "assigned", "completed", "failed", "cancelled",
+             name="task_status", create_type=False),
+        nullable=False, default="pending",
+    )
     result_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     submitted_by: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -66,7 +70,11 @@ class TaskAttempt(Base):
     agent_name: Mapped[str] = mapped_column(String(100), nullable=False)
     agent_endpoint: Mapped[str] = mapped_column(Text, nullable=False)
     attempt_number: Mapped[int] = mapped_column(SmallInteger, nullable=False)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="dispatched")
+    status: Mapped[str] = mapped_column(
+        Enum("dispatched", "succeeded", "failed", "timed_out",
+             name="attempt_status", create_type=False),
+        nullable=False, default="dispatched",
+    )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("NOW()")
